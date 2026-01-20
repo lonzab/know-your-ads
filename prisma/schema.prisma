@@ -1,0 +1,76 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AdStatus {
+  draft
+  pending
+  active
+  rejected
+}
+
+model Ad {
+  id                      String    @id @default(uuid())
+  title                   String
+  advertiserName          String    @map("advertiser_name")
+  destinationUrl          String    @map("destination_url")
+  categoryTags            String[]  @map("category_tags")
+  status                  AdStatus  @default(draft)
+  creativeVideoUrl        String    @map("creative_video_url")
+  creativePosterUrl       String?   @map("creative_poster_url")
+  creativeDurationSeconds Int?      @map("creative_duration_seconds")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  events Event[]
+
+  @@map("ads")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  userAgent String?  @map("user_agent")
+  ipHash    String?  @map("ip_hash")
+
+  events           Event[]
+  sessionInterests SessionInterest[]
+
+  @@map("sessions")
+}
+
+model Event {
+  id        String   @id @default(uuid())
+  sessionId String   @map("session_id")
+  adId      String   @map("ad_id")
+  eventName String   @map("event_name")
+  payload   Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  session Session @relation(fields: [sessionId], references: [id])
+  ad      Ad      @relation(fields: [adId], references: [id])
+
+  @@index([sessionId])
+  @@index([adId])
+  @@index([eventName])
+  @@index([createdAt])
+  @@map("events")
+}
+
+model SessionInterest {
+  id          String   @id @default(uuid())
+  sessionId   String   @map("session_id")
+  categoryTag String   @map("category_tag")
+  score       Float    @default(0)
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  session Session @relation(fields: [sessionId], references: [id])
+
+  @@unique([sessionId, categoryTag])
+  @@map("session_interests")
+}
