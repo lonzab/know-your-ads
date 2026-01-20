@@ -1,5 +1,5 @@
-import { prisma } from './prisma'
 import { Session } from '@/types'
+import { sessionsStore, sessionInterestsStore } from './mockData'
 import crypto from 'crypto'
 
 export async function getOrCreateSession(
@@ -7,30 +7,26 @@ export async function getOrCreateSession(
   userAgent?: string,
   ip?: string
 ): Promise<Session> {
+  const existing = sessionsStore.get(sessionId)
+  if (existing) {
+    return existing as Session
+  }
+
   const ipHash = ip ? crypto.createHash('sha256').update(ip).digest('hex').slice(0, 16) : null
 
-  const session = await prisma.session.upsert({
-    where: { id: sessionId },
-    update: {},
-    create: {
-      id: sessionId,
-      userAgent: userAgent || null,
-      ipHash,
-    },
-  })
+  const session = {
+    id: sessionId,
+    createdAt: new Date(),
+    userAgent: userAgent || null,
+    ipHash,
+  }
+
+  sessionsStore.set(sessionId, session)
   return session as Session
 }
 
 export async function getSessionInterests(sessionId: string): Promise<Map<string, number>> {
-  const interests = await prisma.sessionInterest.findMany({
-    where: { sessionId },
-  })
-
-  const map = new Map<string, number>()
-  for (const interest of interests) {
-    map.set(interest.categoryTag, interest.score)
-  }
-  return map
+  return sessionInterestsStore.get(sessionId) || new Map<string, number>()
 }
 
 export async function updateSessionInterest(
@@ -38,24 +34,14 @@ export async function updateSessionInterest(
   categoryTag: string,
   scoreDelta: number
 ): Promise<void> {
-  await prisma.sessionInterest.upsert({
-    where: {
-      sessionId_categoryTag: {
-        sessionId,
-        categoryTag,
-      },
-    },
-    update: {
-      score: {
-        increment: scoreDelta,
-      },
-    },
-    create: {
-      sessionId,
-      categoryTag,
-      score: scoreDelta,
-    },
-  })
+  let interests = sessionInterestsStore.get(sessionId)
+  if (!interests) {
+    interests = new Map<string, number>()
+    sessionInterestsStore.set(sessionId, interests)
+  }
+
+  const currentScore = interests.get(categoryTag) || 0
+  interests.set(categoryTag, currentScore + scoreDelta)
 }
 
 export async function updateSessionInterests(

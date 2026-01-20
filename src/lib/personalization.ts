@@ -1,6 +1,6 @@
 import { Ad } from '@/types'
 import { getSessionInterests } from './sessions'
-import { prisma } from './prisma'
+import { eventsStore } from './mockData'
 
 const EXPLORATION_THRESHOLD = 5 // Number of swipes before personalization kicks in
 
@@ -14,25 +14,17 @@ export async function getPersonalizedFeed(
   activeAds: Ad[]
 ): Promise<PersonalizedFeed> {
   // Get swipe count for this session
-  const swipeCount = await prisma.event.count({
-    where: {
-      sessionId,
-      eventName: 'swipe',
-    },
-  })
+  const swipeCount = eventsStore.filter(
+    e => e.sessionId === sessionId && e.eventName === 'swipe'
+  ).length
 
   // Get recently shown ads to apply frequency penalty
-  const recentImpressions = await prisma.event.findMany({
-    where: {
-      sessionId,
-      eventName: 'impression',
-      createdAt: {
-        gte: new Date(Date.now() - 60 * 60 * 1000), // Last hour
-      },
-    },
-    select: { adId: true },
-    orderBy: { createdAt: 'desc' },
-  })
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
+  const recentImpressions = eventsStore.filter(
+    e => e.sessionId === sessionId &&
+         e.eventName === 'impression' &&
+         e.createdAt >= oneHourAgo
+  )
 
   const recentAdIds = new Set(recentImpressions.map((e) => e.adId))
 

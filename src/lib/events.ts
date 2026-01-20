@@ -1,7 +1,7 @@
-import { prisma } from './prisma'
 import { EventName, TrackEventRequest } from '@/types'
 import { getAdById } from './ads'
 import { updateSessionInterests, getOrCreateSession } from './sessions'
+import { eventsStore } from './mockData'
 
 // Rate limiting store (in-memory for MVP, use Redis in production)
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>()
@@ -77,14 +77,14 @@ export async function trackEvent(
     }
   }
 
-  // Store event
-  await prisma.event.create({
-    data: {
-      sessionId: session_id,
-      adId: ad_id,
-      eventName: event_name,
-      payload: payload as object,
-    },
+  // Store event in memory
+  eventsStore.push({
+    id: crypto.randomUUID(),
+    sessionId: session_id,
+    adId: ad_id,
+    eventName: event_name,
+    payload: payload as object,
+    createdAt: new Date(),
   })
 
   // Update personalization scores
@@ -142,9 +142,7 @@ export async function getEventStats(adId: string): Promise<{
   avgWatchTimeMs: number
   swipes: { right: number; left: number; up: number }
 }> {
-  const events = await prisma.event.findMany({
-    where: { adId },
-  })
+  const events = eventsStore.filter(e => e.adId === adId)
 
   const stats = {
     impressions: 0,
